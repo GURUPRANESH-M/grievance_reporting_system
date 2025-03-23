@@ -3,7 +3,6 @@ const router = express.Router();
 const multer = require("multer");
 const Grievance = require("../models/Grievance");
 const authenticateUser = require("../middlewares/authMiddleware");
-const mongoose = require("mongoose"); // Import mongoose
 
 // 🖼 Multer Setup for Image Uploads
 const storage = multer.diskStorage({
@@ -31,10 +30,7 @@ router.get("/", authenticateUser, async (req, res) => {
 router.post("/", authenticateUser, upload.single("image"), async (req, res) => {
   try {
     const { title, description, category } = req.body;
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null; // Store image path
-
-    console.log("Received Data:", req.body);
-    console.log("Uploaded File:", req.file);
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
     if (!title || !description || !category) {
       return res.status(400).json({ error: "All fields are required" });
@@ -47,7 +43,6 @@ router.post("/", authenticateUser, upload.single("image"), async (req, res) => {
       imageUrl,
       upvotes: 0,
       upvotedBy: [],
-      user: new mongoose.Types.ObjectId(req.user.id), // Change here to ObjectId
     });
 
     await newGrievance.save();
@@ -66,23 +61,24 @@ router.post("/:id/upvote", authenticateUser, async (req, res) => {
       return res.status(404).json({ error: "Grievance not found" });
     }
 
-    const userId = new mongoose.Types.ObjectId(req.user.id); // Change here to ObjectId
-    const alreadyUpvoted = grievance.upvotedBy.some(id => id.equals(userId)); // Use .equals()
+    const userId = req.user.id; // User's ID from authMiddleware
+
+    const alreadyUpvoted = grievance.upvotedBy.includes(userId);
 
     if (alreadyUpvoted) {
-      grievance.upvotedBy = grievance.upvotedBy.filter(uid => !uid.equals(userId)); // Use .equals()
+      grievance.upvotedBy = grievance.upvotedBy.filter(uid => uid !== userId);
       grievance.upvotes -= 1;
       await grievance.save();
       return res.json({ message: "Upvote removed", upvotes: grievance.upvotes });
     }
 
-    grievance.upvotedBy.push(userId); // Use ObjectId
+    grievance.upvotedBy.push(userId);
     grievance.upvotes += 1;
     await grievance.save();
 
     res.json({ message: "Upvoted", upvotes: grievance.upvotes });
   } catch (error) {
-    console.error("Upvote error:", error); // Log the entire error object
+    console.error("Upvote error:", error);
     res.status(500).json({ error: "Failed to upvote grievance" });
   }
 });
